@@ -55,20 +55,46 @@ iscwsa_params = {}
 
 # Define default values robustly
 default_mwd = {
-    'depth_err_prop': 0.0002, 'depth_err_const': 0.1, 'acc_bias': 0.1, 'acc_sf': 100.0,
-    'acc_mis_xy': 0.1, 'acc_mis_z': 0.1, 'mag_bias': 50.0, 'mag_sf': 150.0,
-    'mag_mis_xy': 0.15, 'mag_mis_z': 0.15, 'mag_dec_err': 0.2, 'mag_dip_err': 0.1,
-    'mag_ds_err': 0.3, 'sag_corr_err': 0.05, 'misalign_err_inc': 0.05,
-    'misalign_err_azi': 0.1, 'gravity_strength': 1.0, 'mag_field_strength': 50000.0,
+    'depth_err_prop': 0.0002,
+    'depth_err_const': 0.1,
+    'acc_bias': 0.1,
+    'acc_sf': 200.0,         # Atualizado para 200 ppm (2023+)
+    'acc_mis_xy': 0.07,      # Reduzido caso sensor avançado
+    'acc_mis_z': 0.07,
+    'mag_bias': 75.0,        # Subiu para 75 nT pelo IFCWSA 2023
+    'mag_sf': 150.0,
+    'mag_mis_xy': 0.10,      # Reduzido para sensores avançados
+    'mag_mis_z': 0.10,
+    'mag_dec_err': 0.2,      # Consultar valor WMM local
+    'mag_dip_err': 0.1,
+    'mag_ds_err': 0.3,
+    'sag_corr_err': 0.05,    # Até 0.07 se muito sensível a sag
+    'misalign_err_inc': 0.05,
+    'misalign_err_azi': 0.1,
+    'gravity_strength': 9.81,    # Valor real em m/s²
+    'mag_field_strength': 50000.0,
     'dip_angle': 60.0
 }
 default_gyro = {
-    'depth_err_prop': 0.0002, 'depth_err_const': 0.1, 'acc_bias': 0.1, 'acc_sf': 100.0,
-    'acc_mis_xy': 0.1, 'acc_mis_z': 0.1, 'gyro_bias_drift_ns': 0.1, 'gyro_bias_drift_ew': 0.1,
-    'gyro_bias_drift_v': 0.1, 'gyro_sf': 200.0, 'gyro_g_sens_drift': 0.05,
-    'gyro_mis_xy': 0.1, 'gyro_mis_z': 0.1, 'gyro_az_ref_err': 0.1,
-    'sag_corr_err': 0.05, 'misalign_err_inc': 0.05, 'misalign_err_azi': 0.1,
-    'gravity_strength': 1.0, 'survey_time_hours': 1.0
+    'depth_err_prop': 0.0002,          # fração
+    'depth_err_const': 0.1,            # m
+    'acc_bias': 0.1,                   # m/s2
+    'acc_sf': 100.0,                   # ppm
+    'acc_mis_xy': 0.10,                # mrad
+    'acc_mis_z': 0.10,                 # mrad
+    'gyro_bias_drift_ns': 0.03,        # deg/h (HRG/FOG), 0.05-0.1 MEMS
+    'gyro_bias_drift_ew': 0.03,        # deg/h
+    'gyro_bias_drift_v' : 0.03,        # deg/h
+    'gyro_sf' : 100.0,                 # ppm (60 para HRG/FOG, 200 para MEMS inferior)
+    'gyro_g_sens_drift': 0.05,         # deg/h/g
+    'gyro_mis_xy': 0.10,               # mrad
+    'gyro_mis_z': 0.10,                # mrad
+    'gyro_az_ref_err': 0.03,           # deg (0.03 HRG/FOG)
+    'sag_corr_err': 0.05,              # deg
+    'misalign_err_inc': 0.05,          # deg
+    'misalign_err_azi': 0.1,           # deg
+    'gravity_strength': 9.81,          # m/s² (use 9.80665 para máxima precisão)
+    'survey_time_hours': 0.25,         # h (ou 1.0 se conservador)
 }
 
 if tool_type == "ISCWSA MWD":
