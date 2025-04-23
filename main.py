@@ -245,10 +245,10 @@ def calculate_iscwsa_covariance(md, inc, az, params, tool_type):
     hr_to_sec = 3600.0
     gravity_mps2 = params.get('gravity_strength', 1.0) * 9.80665 # Use standard gravity
 
-    # Parâmetros de erro (convertidos para radianos ou frações onde aplicável)
+    # Common parameters
     sigma_depth_prop = params.get('depth_err_prop', 0)
     sigma_depth_const = params.get('depth_err_const', 0)
-    sigma_acc_bias = params.get('acc_bias', 0) * mg_to_g * gravity_mps2 # Convertido para m/s^2
+    sigma_acc_bias = params.get('acc_bias', 0) * mg_to_g * gravity_mps2 # Converted to m/s^2
     sigma_acc_sf = params.get('acc_sf', 0) * ppm_to_frac
     sigma_acc_mis_xy = params.get('acc_mis_xy', 0) * mrad_to_rad
     sigma_acc_mis_z = params.get('acc_mis_z', 0) * mrad_to_rad
@@ -256,39 +256,18 @@ def calculate_iscwsa_covariance(md, inc, az, params, tool_type):
     sigma_misalign_inc = params.get('misalign_err_inc', 0) * deg_to_rad
     sigma_misalign_azi = params.get('misalign_err_azi', 0) * deg_to_rad
 
-    # Variâncias (sigma^2) por unidade de "influência" (e.g., por metro, por g, por hora)
-    # These are the *rates* of variance increase, not the total variance at this point yet.
-    # The *actual* ISCWSA method integrates contributions along the path.
-    # This simplified model approximates total variance at a point MD by summing up
-    # error sources scaled by MD and trajectory geometry.
 
-    # Depth error (accumulates linearly with MD and constant)
-    var_depth_at_md = (sigma_depth_prop * md)**2 + sigma_depth_const**2
+    # Variances (sigma^2) for the error sources (conceptual rates or points)
+    # These contribute to angular errors (Inc/Az) which then scale by MD
 
-    # Acc Bias/SF/Misalign contribute to angular errors (Inc/Az)
-    # Variância Angular de Inclinação (rad^2)
-    # dInc contributions (simplified):
-    # AB: dInc ~ dAB_y / g
-    # AS: dInc ~ dAS_y * sin(I)
-    # AM: dInc ~ dAM_x * cos(I) + dAM_z * cos(I) # simplified - real model is complex
-    # Sag: dInc ~ dSAG
-    # MisInc: dInc ~ dMisInc
-    var_inc_rad2_per_m = (1/md**2) * ( # Scale by MD^2 for MD * dInc contributions
-         (sigma_acc_bias**2 / gravity_mps2**2) +  # Acc Bias
-         (sigma_acc_sf**2) * (sind(inc)**2) +       # Acc SF (proxy)
-         (sigma_acc_mis_xy**2 + sigma_acc_mis_z**2) * (cosd(inc)**2) # Acc Misalign (proxy)
-    )
-    var_sag_inc_rad2 = sigma_sag**2
-    var_misalign_inc_rad2 = sigma_misalign_inc**2
+    # Variância Angular de Inclinação (rad^2) - Calculated within tool blocks
+    total_var_inc_rad2 = 0
 
-    # Combine inclination error variances
-    total_var_inc_rad2 = (var_inc_rad2_per_m * md**2) + var_sag_inc_rad2 + var_misalign_inc_rad2
-
-    # Variância Angular de Azimute (rad^2)
-    var_az_rad2_per_m = 0
-    var_az_ref_rad2 = 0
+    # Variância Angular de Azimute (rad^2) - Calculated within tool blocks
+    total_var_az_rad2 = 0
 
     if tool_type == "ISCWSA MWD":
+        # MWD-specific parameters
         sigma_mag_bias = params.get('mag_bias', 0) * nT_to_T
         sigma_mag_sf = params.get('mag_sf', 0) * ppm_to_frac
         sigma_mag_mis_xy = params.get('mag_mis_xy', 0) * mrad_to_rad
@@ -298,85 +277,118 @@ def calculate_iscwsa_covariance(md, inc, az, params, tool_type):
 
         dip_rad = np.radians(params.get('dip_angle', 60))
         B_total_T = params.get('mag_field_strength', 50000) * nT_to_T
-        B_H = B_total_T * np.cos(dip_rad) # Componente horizontal do campo magnético
+        B_H = B_total_T * np.cos(dip_rad) # Horizontal component of magnetic field
 
-        # dAz contributions (simplified):
-        # MB: dAz ~ dMB_x / (Bh * sin(I)) # proxy for lateral mag error / sensitivity
-        # MS: complex
-        # MM: complex
-        # DEC: dAz ~ dDEC
-        # DS: dAz ~ dDS
-        # MisAzi: dAz ~ dMisAzi
-        sensitivity_az = (B_H * sind(inc)) # Denominator in dAz ~ dMag_perp / sensitivity
+        # Inclination Error (rad^2)
+        # dInc contributions (simplified): AB, SF, Misalign, Sag, MisalignInc
+        # This is simplified; actual ISCWSA integrates contributions along MD segments.
+        # Approximate total variance by summing variances scaled by relevant sensitivities and MD.
+        var_inc_acc_bias = (sigma_acc_bias / gravity_mps2)**2
+        var_inc_acc_sf = (sigma_acc_sf * sind(inc))**2 # Simplified
+        var_inc_acc_mis = (max(sigma_acc_mis_xy, sigma_acc_mis_z) * cosd(inc))**2 # Simplified
+        var_inc_sag = sigma_sag**2
+        var_inc_misalign = sigma_misalign_inc**2
+
+        # Sum of uncorrelated inclination error variances
+        total_var_inc_rad2 = var_inc_acc_bias + var_inc_acc_sf + var_inc_acc_mis + var_inc_sag + var_inc_misalign
+
+        # Azimuth Error (rad^2)
+        # dAz contributions (simplified): MB, MS, MM, Dec, DS, MisalignAzi
+        # Sensitivity denominator: Bh * sin(I)
+        sensitivity_az = (B_H * sind(inc))
+
+        var_az_mag_bias = 0
+        var_az_mag_sf = 0
+        var_az_mag_mis = 0
+        var_az_dec = sigma_dec_err**2
+        var_az_ds = sigma_ds_err**2
+        var_az_misalign = sigma_misalign_azi**2
 
         if abs(sensitivity_az) > 1e-9: # Avoid division by zero near vertical or magnetic equator
              # Proxy for magnitude errors contributing to lateral error
-             var_mag_lateral = sigma_mag_bias**2 # + (sigma_mag_sf * B_total_T)**2 * (cosd(inc))**2 # Proxy
-             var_az_rad2_per_m = (1/md**2) * (var_mag_lateral / (sensitivity_az**2)) # Scale by MD^2
+             var_az_mag_bias = (sigma_mag_bias / sensitivity_az)**2
+             # SF and Misalign are more complex, but add a simplified proxy related to inclination sensitivity
+             # var_az_mag_sf = (sigma_mag_sf * cotd(inc) if abs(sind(inc)) > 1e-3 else (30*deg_to_rad))**2 # Very rough proxy
+             # var_az_mag_mis = (max(sigma_mag_mis_xy, sigma_mag_mis_z) * cotd(inc) if abs(sind(inc)) > 1e-3 else (30*deg_to_rad))**2 # Very rough proxy
+        else: # Near vertical or Magnetic Equator, Azimuth highly uncertain
+             # Assign a large variance if sensitivity is zero or near zero
+             # This is a simplified way to represent the large uncertainty in these zones.
+             # A full ISCWSA model uses more sophisticated methods.
+             large_az_error = (30*deg_to_rad)**2 # Example: 30 deg 1-sigma error
+             var_az_mag_bias = large_az_error # Assuming major source of error is here
+             # Assign other variances based on large error or zero if irrelevant
+             var_az_mag_sf = large_az_error
+             var_az_mag_mis = large_az_error
 
-             # Other uncorrelated azimuth errors
-             var_az_ref_rad2 = sigma_dec_err**2 + sigma_ds_err**2 + sigma_misalign_azi**2
 
-        else: # Próximo da vertical ou Equador Magnético, azimute muito incerto
-             var_az_rad2_per_m = (1/md**2) * (30*deg_to_rad)**2 # Assume large angular error rate
-             var_az_ref_rad2 = sigma_az_ref_err**2 + sigma_misalign_azi**2 # Reference might still contribute
+        # Sum of uncorrelated azimuth error variances
+        total_var_az_rad2 = var_az_mag_bias + var_az_mag_sf + var_az_mag_mis + var_az_dec + var_az_ds + var_az_misalign
 
 
     elif tool_type == "ISCWSA Gyro":
-        # Gyro drift rates in rad/s
-        sigma_gyro_bias_drift_ns = params.get('gyro_bias_drift_ns', 0) * deg_to_rad / hr_to_sec
-        sigma_gyro_bias_drift_ew = params.get('gyro_bias_drift_ew', 0) * deg_to_rad / hr_to_sec
-        sigma_gyro_bias_drift_v = params.get('gyro_bias_drift_v', 0) * deg_to_rad / hr_to_sec
+        # Gyro-specific parameters
+        sigma_gyro_bias_drift_ns = params.get('gyro_bias_drift_ns', 0) * deg_to_rad / hr_to_sec # rad/s
+        sigma_gyro_bias_drift_ew = params.get('gyro_bias_drift_ew', 0) * deg_to_rad / hr_to_sec # rad/s
+        sigma_gyro_bias_drift_v = params.get('gyro_bias_drift_v', 0) * deg_to_rad / hr_to_sec # rad/s
+        sigma_gyro_sf = params.get('gyro_sf', 0) * ppm_to_frac # unitless
+        sigma_gyro_g_sens_drift = params.get('gyro_g_sens_drift', 0) * deg_to_rad / hr_to_sec / gravity_mps2 # rad/s per m/s^2
+        sigma_gyro_mis_xy = params.get('gyro_mis_xy', 0) * mrad_to_rad # rad
+        sigma_gyro_mis_z = params.get('gyro_mis_z', 0) * mrad_to_rad # rad
+        sigma_az_ref_err = params.get('gyro_az_ref_err', 0) * deg_to_rad # rad
+        survey_time_sec = params.get('survey_time_hours', 1) * hr_to_sec # seconds
+
+        # Inclination Error (rad^2)
+        # Acc contributions (same as MWD simplified) + Gyro contributions (less significant for Inc in typical Gyro)
+        var_inc_acc_bias = (sigma_acc_bias / gravity_mps2)**2
+        var_inc_acc_sf = (sigma_acc_sf * sind(inc))**2 # Simplified
+        var_inc_acc_mis = (max(sigma_acc_mis_xy, sigma_acc_mis_z) * cosd(inc))**2 # Simplified
+        var_inc_sag = sigma_sag**2
+        var_inc_misalign = sigma_misalign_inc**2
+
+        # Gyro G-sensitivity contributes to Inclination error (simplified proxy)
+        var_inc_gyro_g_sens = (sigma_gyro_g_sens_drift * gravity_mps2 * cosd(inc) * survey_time_sec)**2 # g-sens in vertical plane
+
+        total_var_inc_rad2 = var_inc_acc_bias + var_inc_acc_sf + var_inc_acc_mis + var_inc_sag + var_inc_misalign + var_inc_gyro_g_sens
+
+        # Azimuth Error (rad^2)
+        # Gyro Bias Drift contributes to Azimuth error over time, scaled by 1/sin(I)
+        # Gyro G-Sensitivity contributes to Azimuth error, scaled by g * sin(I)
+        # Azimuth Reference error (AZID) is a fixed offset error
+        # Gyro Misalign contributes (complex)
+        # Gyro SF contributes (complex)
+
+        var_az_gyro_bias_drift = 0
         # Simplification: Use the combined horizontal drift rate
         sigma_gyro_bias_drift_h = np.sqrt(sigma_gyro_bias_drift_ns**2 + sigma_gyro_bias_drift_ew**2)
+        if abs(sind(inc)) > 1e-3:
+             var_az_gyro_bias_drift = (sigma_gyro_bias_drift_h * survey_time_sec / sind(inc))**2
+        else:
+             # High uncertainty near vertical
+             var_az_gyro_bias_drift = (30*deg_to_rad)**2 # Large error proxy
 
-        sigma_gyro_sf = params.get('gyro_sf', 0) * ppm_to_frac
-        sigma_gyro_g_sens_drift = params.get('gyro_g_sens_drift', 0) * deg_to_rad / hr_to_sec / gravity_mps2 # Per m/s^2
-        sigma_gyro_mis_xy = params.get('gyro_mis_xy', 0) * mrad_to_rad
-        sigma_gyro_mis_z = params.get('gyro_mis_z', 0) * mrad_to_rad
-        sigma_az_ref_err = params.get('gyro_az_ref_err', 0) * deg_to_rad
-        survey_time_sec = params.get('survey_time_hours', 1) * hr_to_sec
+        var_az_gyro_g_sens = (sigma_gyro_g_sens_drift * gravity_mps2 * sind(inc) * survey_time_sec)**2 # g-sens in horizontal plane
+        var_az_ref = sigma_az_ref_err**2
+        var_az_misalign = sigma_misalign_azi**2
+        # Missing SF and Gyro Misalign contributions for simplicity
 
-        # dAz contributions (simplified):
-        # GB: dAz ~ dGBias * Time / sin(I) # Proxy for horizontal drift effect
-        # GS: complex
-        # GD: dAz ~ dGD * g * sin(I) * Time / sin(I) = dGD * g * Time # Proxy for g-sensitivity effect
-        # GM: complex
-        # AZID: dAz ~ dAZID
-        # MisAzi: dAz ~ dMisAzi
-
-        if abs(sind(inc)) > 1e-3: # Avoid division by zero near vertical
-            var_az_rad2_per_m = (1/md**2) * ( # Scale by MD^2
-                (sigma_gyro_bias_drift_h * survey_time_sec / sind(inc))**2 + # Gyro Bias Drift
-                (sigma_gyro_g_sens_drift * gravity_mps2 * survey_time_sec)**2 # G-Sens Drift
-                # Add proxies for SF/Misalign?
-                # (sigma_gyro_sf * ...)**2 +
-                # (max(sigma_gyro_mis_xy, sigma_gyro_mis_z) * cotd(inc))**2 # Proxy
-            )
-            var_az_ref_rad2 = sigma_az_ref_err**2 + sigma_misalign_azi**2
-        else: # Near vertical, Azimuth very uncertain
-             var_az_rad2_per_m = (1/md**2) * (30*deg_to_rad)**2 # Assume large angular error rate
-             var_az_ref_rad2 = sigma_az_ref_err**2 + sigma_misalign_azi**2 # Reference might still contribute
-
-
-    total_var_az_rad2 = (var_az_rad2_per_m * md**2) + var_az_ref_rad2
+        # Sum of uncorrelated azimuth error variances
+        total_var_az_rad2 = var_az_gyro_bias_drift + var_az_gyro_g_sens + var_az_ref + var_az_misalign
 
 
     # --- Approximate Covariance Matrix in NEV ---
-    # This is a very simplified propagation. A full ISCWSA would integrate this.
-    # C_nev = Integral(T * C_error * T.T * dMD)
-    # T = sensitivity matrix from error source to NEV.
-    # C_error = covariance of error sources.
-    # Here, we build an approximate C_nev based on the total variances.
+    # Propagate angular errors and depth error into NEV using simplified sensitivities
+    # This is still a major simplification compared to a full ISCWSA error model which integrates
+    # error effects along the path and considers correlations between error sources.
 
     # Var_Along: dominated by depth error
-    var_along = var_depth_at_md
+    var_along = (sigma_depth_prop * md)**2 + sigma_depth_const**2 # Recalculated here for clarity, same as var_depth_at_md
 
     # Var_Vertical_plane: comes from inclination error rotated to be perpendicular to the well in the vertical plane
-    var_vert_plane = (md**2) * total_var_inc_rad2 # Sensitivity dV ~ MD * dInc
+    var_vert_plane = (md**2) * total_var_inc_rad2 # dV approx MD * dInc
 
     # Var_Lateral_plane: comes from azimuth error rotated to be perpendicular to the well in the horizontal plane
-    var_lat_plane = (md * sind(inc))**2 * total_var_az_rad2 # Sensitivity dH ~ MD * sin(I) * dAz
+    var_lat_plane = (md * sind(inc))**2 * total_var_az_rad2 # dH approx MD * sin(I) * dAz
+
 
     # Matriz de Rotação de Wellbore frame (u=along, v=lateral/right, w=vertical/up) para NEV
     # Based on standard definitions
