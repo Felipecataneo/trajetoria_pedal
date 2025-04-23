@@ -55,19 +55,19 @@ iscwsa_params = {}
 
 # Define default values robustly
 default_mwd = {
-    'depth_err_prop': 0.00056, 'depth_err_const': 0.35, 'acc_bias': 0.004, 'acc_sf': 0.0005,
-    'acc_mis_xy': 0.1, 'acc_mis_z': 0.1, 'mag_bias': 70.0, 'mag_sf': 0.0016,
-    'mag_mis_xy': 0.15, 'mag_mis_z': 0.15, 'mag_dec_err': 0.36, 'mag_dip_err': 0.1,
-    'mag_ds_err': 0.6, 'sag_corr_err': 0.2, 'misalign_err_inc': 0.06,
-    'misalign_err_azi': 0.06, 'gravity_strength': 1.0, 'mag_field_strength': 50000.0,
+    'depth_err_prop': 0.0002, 'depth_err_const': 0.1, 'acc_bias': 0.1, 'acc_sf': 100.0,
+    'acc_mis_xy': 0.1, 'acc_mis_z': 0.1, 'mag_bias': 50.0, 'mag_sf': 150.0,
+    'mag_mis_xy': 0.15, 'mag_mis_z': 0.15, 'mag_dec_err': 0.2, 'mag_dip_err': 0.1,
+    'mag_ds_err': 0.3, 'sag_corr_err': 0.05, 'misalign_err_inc': 0.05,
+    'misalign_err_azi': 0.1, 'gravity_strength': 1.0, 'mag_field_strength': 50000.0,
     'dip_angle': 60.0
 }
 default_gyro = {
-    'depth_err_prop': 0.00056, 'depth_err_const': 1, 'acc_bias': 0.004, 'acc_sf': 0.0005,
-    'acc_mis_xy': 0.1, 'acc_mis_z': 0.1, 'gyro_bias_drift_ns': 0.033, 'gyro_bias_drift_ew': 0.033,
-    'gyro_bias_drift_v': 0.033, 'gyro_sf': 200.0, 'gyro_g_sens_drift': 0.03,
+    'depth_err_prop': 0.0002, 'depth_err_const': 0.1, 'acc_bias': 0.1, 'acc_sf': 100.0,
+    'acc_mis_xy': 0.1, 'acc_mis_z': 0.1, 'gyro_bias_drift_ns': 0.1, 'gyro_bias_drift_ew': 0.1,
+    'gyro_bias_drift_v': 0.1, 'gyro_sf': 200.0, 'gyro_g_sens_drift': 0.05,
     'gyro_mis_xy': 0.1, 'gyro_mis_z': 0.1, 'gyro_az_ref_err': 0.1,
-    'sag_corr_err': 0.08, 'misalign_err_inc': 0.1, 'misalign_err_azi': 0.1,
+    'sag_corr_err': 0.05, 'misalign_err_inc': 0.05, 'misalign_err_azi': 0.1,
     'gravity_strength': 1.0, 'survey_time_hours': 1.0
 }
 
