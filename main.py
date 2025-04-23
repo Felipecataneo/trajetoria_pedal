@@ -319,7 +319,7 @@ def calculate_iscwsa_covariance(md, inc, az, params, tool_type):
 
         else: # Próximo da vertical ou Equador Magnético, azimute muito incerto
              var_az_rad2_per_m = (1/md**2) * (30*deg_to_rad)**2 # Assume large angular error rate
-             var_az_ref_rad2 = 0 # Reference errors less relevant if primary measurement is poor
+             var_az_ref_rad2 = sigma_az_ref_err**2 + sigma_misalign_azi**2 # Reference might still contribute
 
 
     elif tool_type == "ISCWSA Gyro":
@@ -928,21 +928,21 @@ if well1_file and well2_file:
            min_md = df_results['MD1'].min()
            max_md = df_results['MD1'].max()
 
-           # Add lines for risk levels
+           # Add lines for risk levels - REMOVED 'name' PROPERTY
            fig_sf.add_shape(type="line",
                x0=min_md, y0=1.0, x1=max_md, y1=1.0,
                line=dict(color="red", width=2, dash="dash"),
-               name="SF=1.0 (Colisão)"
+               # name="SF=1.0 (Colisão)" # REMOVED
            )
            fig_sf.add_shape(type="line",
                x0=min_md, y0=1.5, x1=max_md, y1=1.5,
                line=dict(color="orange", width=2, dash="dash"),
-               name="SF=1.5 (Alto Risco)"
+               # name="SF=1.5 (Alto Risco)" # REMOVED
            )
            fig_sf.add_shape(type="line",
                x0=min_md, y0=2.0, x1=max_md, y1=2.0,
                line=dict(color="green", width=2, dash="dash"),
-               name="SF=2.0 (Médio/Baixo Risco)"
+               # name="SF=2.0 (Médio/Baixo Risco)" # REMOVED
            )
 
            # Add shaded regions for risk levels (optional, can make it busy)
@@ -965,6 +965,7 @@ if well1_file and well2_file:
                legend=dict(x=0.01, y=0.99),
                shapes=[
                    # Add annotations for risk zones near the lines
+                   # x position is MD, y position is SF value
                    dict(x=max_md * 0.95, y=0.5, xref="x", yref="y", text="Colisão (<1.0)", showarrow=False, font=dict(color="red", size=10)),
                    dict(x=max_md * 0.95, y=1.25, xref="x", yref="y", text="Alto Risco (1.0-1.5)", showarrow=False, font=dict(color="orange", size=10)),
                    dict(x=max_md * 0.95, y=1.75, xref="x", yref="y", text="Médio Risco (1.5-2.0)", showarrow=False, font=dict(color="green", size=10)),
@@ -1172,7 +1173,7 @@ else:
        'INC': [0, 15, 30, 45, 60, 75],
        'AZ': [0, 45, 45, 60, 90, 120]
    })
-   st.write("Formato esperado para os arquivos Excel (primeira aba):")
+   st.write("Formato esperado para os arquivos Excel (first sheet):")
    st.dataframe(example_data)
    st.markdown("""
    As colunas essenciais são:
