@@ -806,13 +806,13 @@ if well1_file and well2_file:
 
        # 2. Calculate Covariance at each point
        # Wrap in a function for clarity
-       # The cache key should ideally include the *entire* state used in calculate_iscwsa_covariance
-       # This includes md, inc, az *for each point*, params, and tool_type.
-       # Passing the dataframe slice (MD, INC, AZ) for the whole well is a reasonable cache key.
+       # The cache key will now be based on coords_df_md_inc_az, params_tuple, and tool_type
        @st.cache_data(ttl=3600, show_spinner="Calculando Incerteza ISCWSA...")
-       def get_covariance_for_well(coords_df_md_inc_az, params_dict, tool): # Changed params_tuple to params_dict
+       # Added params_tuple as an argument to the decorated function
+       def get_covariance_for_well(coords_df_md_inc_az, params_dict, tool, params_tuple_for_key):
             # IMPORTANT: Covariance depends on MD, INC, AZ, *not* the absolute NEV.
             # Pass the original MD, INC, AZ to the covariance function.
+            # params_tuple_for_key is only here for caching purposes, it's not used in the calculation logic.
             covs = []
             # Check if required columns exist
             if not all(col in coords_df_md_inc_az.columns for col in ['MD', 'INC', 'AZ']):
@@ -833,15 +833,16 @@ if well1_file and well2_file:
             cov_prog_bar.empty() # Clear progress bar when done
             return covs
 
-       # Use tuple(iscwsa_params.items()) as the cache key
+       # Use tuple(iscwsa_params.items()) as part of the cache key
        params_tuple_key = tuple(sorted(iscwsa_params.items()))
 
        # Combine coords with covariance
-       # Pass the *original* dataframe slice with MD/INC/AZ and the actual params_dict
-       covs1 = get_covariance_for_well(coords_well1[['MD', 'INC', 'AZ']], iscwsa_params, tool_type, key=params_tuple_key) # Use the tuple as key
+       # Pass the *original* dataframe slice with MD/INC/AZ, the actual params_dict,
+       # and the params_tuple_key as arguments to the decorated function.
+       covs1 = get_covariance_for_well(coords_well1[['MD', 'INC', 'AZ']], iscwsa_params, tool_type, params_tuple_key)
        coords_well1['Covariance'] = covs1
 
-       covs2 = get_covariance_for_well(coords_well2[['MD', 'INC', 'AZ']], iscwsa_params, tool_type, key=params_tuple_key) # Use the tuple as key
+       covs2 = get_covariance_for_well(coords_well2[['MD', 'INC', 'AZ']], iscwsa_params, tool_type, params_tuple_key)
        coords_well2['Covariance'] = covs2
 
 
