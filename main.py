@@ -422,31 +422,9 @@ def calculate_iscwsa_covariance(md, inc, az, params, tool_type):
         # This matrix seems inconsistent with standard axis definitions.
         # Standard Tool frame: u (along-hole), v (right, horizontal), w (up, vertical plane)
         # Our 'Lateral' seems like 'v', 'Vertical_plane' seems like 'w'.
-        # C_tool_approx = diag(var_along, var_lat_plane, var_vert_plane) based on u, v, w?
+        # C_tool_approx = diag(var_along, var_lateral, var_vertical) based on u, v, w?
         # Yes, var_along (u), var_lat_plane (v), var_vert_plane (w)
         # The rotation from (u,v,w) to (N,E,-V) is R_wb_to_nev used previously.
-    ])
-
-    # Using the previous R_wb_to_nev (wellbore frame (u, v, w) to NEV)
-    # u = Along-hole
-    # v = Perp-Horizontal (right of Azi)
-    # w = Perp-Vertical (up)
-    # C_wellbore = diag(var_along, var_lat_plane, var_vert_plane) # Map our variances here
-
-    R_wb_to_nev = np.array([
-        [si*ca, -sa, ci*ca], # N from (u,v,w) -> N = u*si*ca + v*(-sa) + w*ci*ca
-        [si*sa, ca, ci*sa],  # E from (u,v,w) -> E = u*si*sa + v*ca + w*ci*sa
-        [ci   , 0 , -si]     # V_down from (u,v,w) -> V = u*ci + v*0 + w*(-si)
-        # This assumes v is to the right (E) and w is Up.
-        # Let's re-verify the standard ISCWSA wellbore frame (u,v,w)
-        # u: along-hole
-        # v: horizontal, perpendicular to u, pointing right (relative to tool face)
-        # w: in vertical plane, perpendicular to u, pointing up (relative to tool face)
-        # If tool face is 0, v is Easting direction if well is deviated North, w is Up direction.
-        # Our calculated variances are not specific to tool face, assuming axial symmetry of errors for v/w.
-        # Var_along (u) = var_depth_at_md
-        # Var_Lateral_plane (v) = (md * sind(inc))**2 * total_var_az_rad2 # This is error perpendicular to wellbore in horizontal plane, aligned with v (right) if tool face is 0.
-        # Var_Vertical_plane (w) = (md**2) * total_var_inc_rad2 # This is error perpendicular to wellbore in vertical plane, aligned with w (up) if tool face is 0.
     ])
      # Let's use the definition where v is horizontal and w is vertical in the plane perpendicular to u.
     # C_wellbore = np.diag([var_along, var_lat_plane, var_vert_plane]) # Assuming order (u, v, w)
@@ -832,7 +810,7 @@ if well1_file and well2_file:
        # This includes md, inc, az *for each point*, params, and tool_type.
        # Passing the dataframe slice (MD, INC, AZ) for the whole well is a reasonable cache key.
        @st.cache_data(ttl=3600, show_spinner="Calculando Incerteza ISCWSA...")
-       def get_covariance_for_well(coords_df_md_inc_az, params, tool):
+       def get_covariance_for_well(coords_df_md_inc_az, params_dict, tool): # Changed params_tuple to params_dict
             # IMPORTANT: Covariance depends on MD, INC, AZ, *not* the absolute NEV.
             # Pass the original MD, INC, AZ to the covariance function.
             covs = []
@@ -846,7 +824,8 @@ if well1_file and well2_file:
             total_points = len(coords_df_md_inc_az)
 
             for i, row in coords_df_md_inc_az.iterrows():
-                cov = calculate_iscwsa_covariance(row['MD'], row['INC'], row['AZ'], params, tool)
+                # Pass the dictionary to the calculation function
+                cov = calculate_iscwsa_covariance(row['MD'], row['INC'], row['AZ'], params_dict, tool)
                 covs.append(cov)
                 # Update progress bar
                 cov_prog_bar.progress((i + 1) / total_points)
@@ -854,15 +833,15 @@ if well1_file and well2_file:
             cov_prog_bar.empty() # Clear progress bar when done
             return covs
 
-       # Use tuple(iscwsa_params.items()) for caching complex dict
-       params_tuple = tuple(sorted(iscwsa_params.items()))
+       # Use tuple(iscwsa_params.items()) as the cache key
+       params_tuple_key = tuple(sorted(iscwsa_params.items()))
 
        # Combine coords with covariance
-       # Pass the *original* dataframe slice with MD/INC/AZ to the cache function
-       covs1 = get_covariance_for_well(coords_well1[['MD', 'INC', 'AZ']], params_tuple, tool_type)
+       # Pass the *original* dataframe slice with MD/INC/AZ and the actual params_dict
+       covs1 = get_covariance_for_well(coords_well1[['MD', 'INC', 'AZ']], iscwsa_params, tool_type, key=params_tuple_key) # Use the tuple as key
        coords_well1['Covariance'] = covs1
 
-       covs2 = get_covariance_for_well(coords_well2[['MD', 'INC', 'AZ']], params_tuple, tool_type)
+       covs2 = get_covariance_for_well(coords_well2[['MD', 'INC', 'AZ']], iscwsa_params, tool_type, key=params_tuple_key) # Use the tuple as key
        coords_well2['Covariance'] = covs2
 
 
