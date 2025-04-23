@@ -580,10 +580,23 @@ if well1_file and well2_file:
            if 'AZ' not in current_cols: found_az = False; [rename_map.update({potential_az:'AZ'}) or (found_az := True) for potential_az in ['AZIMUTH', 'AZIM', 'AZIMUTE'] if potential_az in current_cols]; data_valid &= found_az; st.error(f"Coluna 'AZ' não encontrada em {well_name}. Colunas: {original_cols}") if not found_az else None
            if not data_valid: continue
            df.rename(columns=rename_map, inplace=True)
+    
+           # Ensure numeric types
            cols_to_check = [col for col in expected_cols if col in df.columns]
-           for col in cols_to_check: try: df[col] = pd.to_numeric(df[col], errors='coerce'); except Exception as e_num: st.error(f"Erro ao converter '{col}' em {well_name}: {e_num}"); data_valid = False
-           if not data_valid: continue
-           initial_rows = len(df); df.dropna(subset=cols_to_check, inplace=True)
+           for col in cols_to_check:
+               try:
+                   df[col] = pd.to_numeric(df[col], errors='coerce')
+               except Exception as e_num:
+                   st.error(f"Erro ao converter coluna '{col}' para número em {well_name}: {e_num}")
+                   data_valid = False
+                   # Optional: break here if one failure makes the whole file invalid?
+                   # break
+    
+           if not data_valid: continue # Check validity again after trying conversion
+    
+           # Drop rows with NaN in essential columns (now includes those coerced by errors='coerce')
+           initial_rows = len(df)
+           df.dropna(subset=cols_to_check, inplace=True)
            if len(df) < initial_rows: st.warning(f"Removidas {initial_rows - len(df)} linhas inválidas em {well_name}.")
            if len(df) < 2: st.error(f"Arquivo {well_name} não contém dados suficientes."); data_valid = False
        if not data_valid: st.stop()
