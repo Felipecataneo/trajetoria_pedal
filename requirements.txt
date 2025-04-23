@@ -1,0 +1,8 @@
+streamlit
+pandas
+numpy
+matplotlib
+openpyxl
+xlrd
+scipy
+plotly
