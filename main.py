@@ -808,8 +808,11 @@ if well1_file and well2_file:
                p2_index = p2_row['OriginalIndex'] # Get its original index
 
                # Retrieve the CUMULATIVE covariance matrices from the lists using the index
-               cov1 = covs_list1[p1_index] if p1_index < len(covs_list1) else None
-               cov2 = covs_list2[p2_index] if p2_index < len(covs_list2) else None
+               p1_index_int = int(p1_index) # Convert to integer
+               p2_index_int = int(p2_index) # Convert to integer
+
+               cov1 = covs_list1[p1_index_int] if p1_index_int < len(covs_list1) else None
+               cov2 = covs_list2[p2_index_int] if p2_index_int < len(covs_list2) else None
 
                # Ensure covariance data is valid
                cov1_valid = isinstance(cov1, np.ndarray) and cov1.shape == (3,3)
