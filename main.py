@@ -369,16 +369,6 @@ def calculate_iscwsa_covariance(md, inc, az, params, tool_type):
     # C_error = covariance of error sources.
     # Here, we build an approximate C_nev based on the total variances.
 
-    # Simplified transformation from Angular/Depth variance to NEV variance
-    # dN = MD * (dInc * cos(Az) * cos(I) - dAz * sin(Az) * sin(I)) + dMD * sin(I) * cos(Az)
-    # dE = MD * (dInc * sin(Az) * cos(I) + dAz * cos(Az) * sin(I)) + dMD * sin(I) * sin(Az)
-    # dV = -MD * dInc * sin(I) + dMD * cos(I)
-    # This is for *increments*. For cumulative, it's more complex.
-
-    # Let's approximate the cumulative covariance directly based on total variances:
-    # C_nev = R_tool_to_nev * C_tool * R_tool_to_nev.T
-    # Where C_tool is approximately diag(Var_Along, Var_Lateral, Var_Vertical_plane)
-
     # Var_Along: dominated by depth error
     var_along = var_depth_at_md
 
@@ -388,50 +378,24 @@ def calculate_iscwsa_covariance(md, inc, az, params, tool_type):
     # Var_Lateral_plane: comes from azimuth error rotated to be perpendicular to the well in the horizontal plane
     var_lat_plane = (md * sind(inc))**2 * total_var_az_rad2 # Sensitivity dH ~ MD * sin(I) * dAz
 
-    # Matriz de Rotação de Tool frame (Along-hole, Lateral, Vertical-plane) para NEV
-    # Using a simplified mapping: Along -> Along, Lateral -> Perp-Horizontal, Vertical-plane -> Perp-Vertical
-    # R_tool_to_nev based on NEV axis alignment
-    # Along-hole vector: (sin(I)cos(A), sin(I)sin(A), cos(I))
-    # Lateral vector (perp to Along, horizontal): (-sin(A), cos(A), 0) # This is Easting's lateral axis
-    # Vertical-plane vector (perp to Along, in vertical plane): (cos(I)cos(A), cos(I)sin(A), -sin(I)) # This is Down's component
-
+    # Matriz de Rotação de Wellbore frame (u=along, v=lateral/right, w=vertical/up) para NEV
+    # Based on standard definitions
     si = sind(inc)
     ci = cosd(inc)
     sa = sind(az)
     ca = cosd(az)
 
-    # Using the R matrix that transforms from NEV to a tool frame (Along, Lateral, Vertical) - need the inverse (transpose) for NEV from Tool
-    # R_nev_to_tool = np.array([
-    #    [si*ca, si*sa, ci],  # Along
-    #    [-sa, ca, 0],       # Lateral (Easting axis)
-    #    [ci*ca, ci*sa, -si]  # Vertical (Downing axis)
-    # ])
-    # R_tool_to_nev = R_nev_to_tool.T
-
-    # Let's reconsider the NEV axes and their relationship to the simplified variances.
-    # The variances calculated (var_along, var_lat_plane, var_vert_plane) are variances
-    # along these conceptual axes relative to the wellbore orientation.
-    # C_tool_approx = diag(var_along, var_lat_plane, var_vert_plane)
-
-    # Rotate C_tool_approx to NEV using the appropriate rotation matrix.
-    # A common rotation from (Along, Lateral, Vertical_Plane) to NEV is:
-    R_tool_to_nev = np.array([
-        [si*ca, -sa, ci*ca], # N = Along*si*ca + Lateral*(-sa) + Vert_plane*ci*ca
-        [si*sa, ca, ci*sa],  # E = Along*si*sa + Lateral*ca + Vert_plane*ci*sa
-        [ci   , 0 , -si]     # V = Along*ci   + Lateral*0  + Vert_plane*(-si)
-        # This matrix seems inconsistent with standard axis definitions.
-        # Standard Tool frame: u (along-hole), v (right, horizontal), w (up, vertical plane)
-        # Our 'Lateral' seems like 'v', 'Vertical_plane' seems like 'w'.
-        # C_tool_approx = diag(var_along, var_lateral, var_vertical) based on u, v, w?
-        # Yes, var_along (u), var_lat_plane (v), var_vert_plane (w)
-        # The rotation from (u,v,w) to (N,E,-V) is R_wb_to_nev used previously.
+    # Define the rotation matrix from Wellbore Frame (u, v, w) to NEV
+    # u = Along-hole, v = Lateral (perp, right), w = Vertical Plane (perp, up)
+    R_wb_to_nev = np.array([
+        [si*ca, -sa, ci*ca], # N component of u, v, w
+        [si*sa, ca, ci*sa],  # E component of u, v, w
+        [ci   , 0 , -si]     # V_down component of u, v, w
     ])
-     # Let's use the definition where v is horizontal and w is vertical in the plane perpendicular to u.
-    # C_wellbore = np.diag([var_along, var_lat_plane, var_vert_plane]) # Assuming order (u, v, w)
 
-    # The previous rotation matrix R_wb_to_nev seems plausible for transforming (u, v, w) variances to NEV.
-    # Let's re-use it with the calculated variances.
+    # C_wellbore = diag(var_along, var_lat_plane, var_vert_plane) # Assuming order (u, v, w)
     C_wellbore = np.diag([var_along, var_lat_plane, var_vert_plane])
+
 
     # Rotação da Matriz de Covariância: C_nev = R * C_wellbore * R.T
     C_nev = R_wb_to_nev @ C_wellbore @ R_wb_to_nev.T
