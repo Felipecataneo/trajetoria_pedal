@@ -760,6 +760,31 @@ else:
     # --- Tela inicial (sem mudanças) ---
     st.info("Aguardando upload dos arquivos Excel e definição das coordenadas de cabeça de poço...")
     example_data = pd.DataFrame({'MD': [0, 500, 1000], 'INC': [0, 15, 30], 'AZ': [0, 45, 45]})
-    st.write("Formato esperado:"); st.dataframe(example_data); st.markdown("""(...)""")
-    buffer = BytesIO(); with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer: example_data.to_excel(writer, index=False, sheet_name='Exemplo'); buffer.seek(0)
-    st.download_button(label="Download Arquivo Exemplo", data=buffer, file_name="exemplo.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    st.write("Formato esperado:")
+    st.dataframe(example_data)
+    st.markdown("""
+       As colunas essenciais são:
+       - **MD**: Profundidade Medida
+       - **INC**: Inclinação (graus)
+       - **AZ**: Azimute (graus)
+
+       Nomes comuns serão reconhecidos. Insira as coordenadas de cabeça de poço.
+       """) # Keep explanation separate for clarity
+
+    # --- CORREÇÃO DO SYNTAX ERROR ---
+    buffer = BytesIO()
+    # Use the 'with' statement correctly with an indented block
+    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+        example_data.to_excel(writer, index=False, sheet_name='TrajetoriaExemplo') # Use consistent sheet name if desired
+
+    # buffer.seek(0) should happen *after* the 'with' block finishes and the writer is closed.
+    buffer.seek(0)
+    # ------------------------------
+
+    st.download_button(
+        label="Download Arquivo Exemplo (.xlsx)", # Ensure label matches previous code if intended
+        data=buffer,
+        file_name="exemplo_trajetoria.xlsx", # Ensure filename matches previous code if intended
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
