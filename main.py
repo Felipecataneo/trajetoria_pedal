@@ -899,7 +899,7 @@ if well1_file and well2_file:
        # Create dataframe of results
        if results:
            df_results = pd.DataFrame(results)
-           # Drop rows where essential distance calculations failed (resulted in NaN)
+           # Drop rows where essential distance calculations failed (resultted in NaN)
            df_results.dropna(subset=['DistCentros', 'DistPedal', 'SF'], inplace=True) # Include SF in dropna
 
            if df_results.empty:
@@ -930,7 +930,7 @@ if well1_file and well2_file:
            # Add SF trace
            fig_sf.add_trace(go.Scatter(x=df_results['MD1'], y=df_results['SF'], mode='lines+markers', name='Fator de Separação (SF)'))
 
-           # Add risk interpretation lines
+           # Add risk interpretation lines (Shapes)
            # SF < 1.0: Collision (wellbores intersect)
            # 1.0 < SF < 1.5: High risk of collision
            # 1.5 < SF < 2.0: Medium risk of collision
@@ -940,49 +940,44 @@ if well1_file and well2_file:
            min_md = df_results['MD1'].min()
            max_md = df_results['MD1'].max()
 
-           # Add lines for risk levels - REMOVED 'name' PROPERTY
+           # Add lines for risk levels (Shape objects)
+           # 'name' property is not valid for shapes added this way in update_layout or add_shape calls
+           # We'll use annotations for labels instead.
            fig_sf.add_shape(type="line",
                x0=min_md, y0=1.0, x1=max_md, y1=1.0,
                line=dict(color="red", width=2, dash="dash"),
-               # name="SF=1.0 (Colisão)" # REMOVED
            )
            fig_sf.add_shape(type="line",
                x0=min_md, y0=1.5, x1=max_md, y1=1.5,
                line=dict(color="orange", width=2, dash="dash"),
-               # name="SF=1.5 (Alto Risco)" # REMOVED
            )
            fig_sf.add_shape(type="line",
                x0=min_md, y0=2.0, x1=max_md, y1=2.0,
                line=dict(color="green", width=2, dash="dash"),
-               # name="SF=2.0 (Médio/Baixo Risco)" # REMOVED
            )
 
-           # Add shaded regions for risk levels (optional, can make it busy)
-           # Requires adding rectangles as shapes
-           # Example: High Risk (1.0 to 1.5)
-           # fig_sf.add_shape(type="rect",
-           #     x0=min_md, y0=1.0, x1=max_md, y1=1.5,
-           #     fillcolor="red", opacity=0.1, layer="below", line_width=0,
-           # )
-           # fig_sf.add_shape(type="rect",
-           #     x0=min_md, y0=1.5, x1=max_md, y1=2.0,
-           #     fillcolor="orange", opacity=0.1, layer="below", line_width=0,
-           # )
+           # Define annotations (Text Labels) - These belong in the 'annotations' list in layout
+           annotations_list = [
+               # Add annotations for risk zones near the lines
+               # x position is MD, y position is SF value (using data coordinates)
+               # Check if max_md is valid before using it in x position
+               dict(x=max_md * 0.95 if pd.notna(max_md) and max_md > 0 else 100, y=0.5, xref="x", yref="y", text="Colisão (<1.0)", showarrow=False, font=dict(color="red", size=10)),
+               dict(x=max_md * 0.95 if pd.notna(max_md) and max_md > 0 else 100, y=1.25, xref="x", yref="y", text="Alto Risco (1.0-1.5)", showarrow=False, font=dict(color="orange", size=10)),
+               dict(x=max_md * 0.95 if pd.notna(max_md) and max_md > 0 else 100, y=1.75, xref="x", yref="y", text="Médio Risco (1.5-2.0)", showarrow=False, font=dict(color="green", size=10)),
+               dict(x=max_md * 0.95 if pd.notna(max_md) and max_md > 0 else 100, y=2.25, xref="x", yref="y", text="Baixo Risco (>2.0)", showarrow=False, font=dict(color="blue", size=10)),
+           ]
+
 
            fig_sf.update_layout(
                title='Fator de Separação (SF) vs Profundidade Medida (MD Poço 1)',
                xaxis_title='MD Poço 1 (m)',
                yaxis_title='Fator de Separação (SF)',
-               yaxis_range=[0, max(df_results['SF'].max() * 1.1 if not df_results['SF'].empty else 5, 2.1)], # Ensure y-axis includes key thresholds and data max
+               # Dynamically set y-axis range: from 0 up to max SF (with padding) or minimum threshold (2.1)
+               yaxis_range=[0, max(df_results['SF'].max() * 1.1 if not df_results['SF'].empty and df_results['SF'].max() != np.inf and pd.notna(df_results['SF'].max()) else 5, 2.1)], # Ensure y-axis includes key thresholds and data max
                legend=dict(x=0.01, y=0.99),
-               shapes=[
-                   # Add annotations for risk zones near the lines
-                   # x position is MD, y position is SF value
-                   dict(x=max_md * 0.95, y=0.5, xref="x", yref="y", text="Colisão (<1.0)", showarrow=False, font=dict(color="red", size=10)),
-                   dict(x=max_md * 0.95, y=1.25, xref="x", yref="y", text="Alto Risco (1.0-1.5)", showarrow=False, font=dict(color="orange", size=10)),
-                   dict(x=max_md * 0.95, y=1.75, xref="x", yref="y", text="Médio Risco (1.5-2.0)", showarrow=False, font=dict(color="green", size=10)),
-                   dict(x=max_md * 0.95, y=2.25, xref="x", yref="y", text="Baixo Risco (>2.0)", showarrow=False, font=dict(color="blue", size=10)),
-               ]
+               # Add the annotations list to the layout
+               annotations=annotations_list
+               # The 'shapes' list here is implicitly populated by add_shape calls
            )
            st.plotly_chart(fig_sf, use_container_width=True)
 
@@ -1147,7 +1142,7 @@ if well1_file and well2_file:
                - Estes modelos, padronizados pela *Industry Steering Committee on Wellbore Survey Accuracy* (ISCWSA), consideram **múltiplas fontes de erro** que afetam as medições de trajetória (ex: bias de sensores, erros de escala, desalinhamentos, erros de profundidade, interferência magnética/drift do giroscópio, erros de referência, etc.). Os parâmetros são definidos pelo usuário na barra lateral.
                - A incerteza de cada fonte de erro é propagada e combinada matematicamente para formar uma **matriz de covariância** 3D (tipicamente Norte, Este, Vertical) em cada ponto da trajetória. Esta matriz descreve não só o tamanho da incerteza em cada direção, mas também a correlação entre elas. *(Nota: A implementação aqui usa uma aproximação simplificada da combinação de erros)*.
                - A **elipse de incerteza horizontal** (plotada em 2D) é derivada da submatriz Norte-Este da matriz de covariância. Seus semi-eixos (maior e menor) e sua orientação **não estão necessariamente alinhados com o azimute do poço**, mas sim com as direções de maior e menor incerteza combinada no plano horizontal.
-               - A **orientação da elipse** (ângulo do eixo maior com o Norte, `Ang1`/`Ang2`) e a **razão entre os eixos** (forma da elipse, `SMj`/`SMn`) dependem complexamente da trajetória (MD, INC, AZ), das propriedades do campo geomagnético/gravitacional local e de todos os parâmetros de erro da ferramenta ({tool_type}) selecionada.
+               - A **orientação da elipse** (ângulo do eixo maior com o Norte, `Ang1`/`Ang2`) e a **razão entre os eixos** (forma da elipse, `SMj`/`SMn`) dependem complexmente da trajetória (MD, INC, AZ), das propriedades do campo geomagnético/gravitacional local e de todos os parâmetros de erro da ferramenta ({tool_type}) selecionada.
 
                **Fator de Separação (SF):**
                - O SF é uma medida adimensional de risco calculada como:
